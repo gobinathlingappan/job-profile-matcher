@@ -27,7 +27,7 @@ function extractKeywords(text) {
     if (!stopWords.has(w)) freq[w] = (freq[w] || 0) + 1;
   }
   return Object.entries(freq)
-    .sort((a, b) => b[1] - a[1])
+    .sort((a, b) => b - a)
     .slice(0, 50)
     .map(([word]) => word);
 }
@@ -40,7 +40,6 @@ function calculateMatch(profileKeywords, jobText) {
   return { score, matched: matched.slice(0, 10) };
 }
 
-// Responsive Web UI (Works on desktop & mobile browsers)
 app.get('/', (req, res) => {
   res.send(`<!DOCTYPE html>
 <html lang="en">
@@ -90,7 +89,7 @@ app.get('/', (req, res) => {
     <button type="submit" id="submitBtn">Search & Match Jobs</button>
   </form>
 
-  <div id="status" style="margin-bottom: 1rem; font-weight: 500;"></div>
+  <div id="status" style="margin-bottom: 1rem; font-weight: 500; color: #0f172a;"></div>
   <div id="results"></div>
 
   <script>
@@ -99,7 +98,6 @@ app.get('/', (req, res) => {
     const submitBtn = document.getElementById('submitBtn');
     const MAX_WORDS = 3000;
 
-    // Live word count validation
     profileInput.addEventListener('input', () => {
       const words = profileInput.value.trim().split(/\\s+/).filter(Boolean);
       const count = words.length;
@@ -161,9 +159,15 @@ app.get('/', (req, res) => {
 </html>`);
 });
 
-// Backend API
 app.post('/api/match', async (req, res) => {
   try {
+    const appId = (process.env.ADZUNA_APP_ID || '').trim();
+    const appKey = (process.env.ADZUNA_APP_KEY || '').trim();
+
+    if (!appId || !appKey) {
+      return res.status(500).json({ error: 'Missing ADZUNA_APP_ID or ADZUNA_APP_KEY in Render Environment Variables.' });
+    }
+
     const { title, location, profile } = req.body;
     if (!title || !location || !profile) {
       return res.status(400).json({ error: 'Title, location, and profile text are required.' });
@@ -175,8 +179,8 @@ app.post('/api/match', async (req, res) => {
     const profileKeywords = extractKeywords(profile);
 
     const params = new URLSearchParams({
-      app_id: process.env.ADZUNA_APP_ID,
-      app_key: process.env.ADZUNA_APP_KEY,
+      app_id: appId,
+      app_key: appKey,
       results_per_page: '25',
       what: title,
       where: location,
@@ -184,7 +188,19 @@ app.post('/api/match', async (req, res) => {
     });
 
     const url = `https://adzuna.com{params.toString()}`;
-    const apiRes = await fetch(url);
+
+    let apiRes;
+    try {
+      apiRes = await fetch(url, {
+        headers: { 'Accept': 'application/json', 'User-Agent': 'JobMatcherApp/1.0' },
+        signal: AbortSignal.timeout(15000)
+      });
+    } catch (fetchErr) {
+      const detail = fetchErr.cause?.code || fetchErr.cause?.message || fetchErr.message;
+      console.error('Adzuna fetch error:', fetchErr);
+      return res.status(502).json({ error: `Could not reach Adzuna (${detail}). Check Render Logs.` });
+    }
+
     if (!apiRes.ok) {
       const errText = await apiRes.text();
       return res.status(502).json({ error: `Adzuna API error (${apiRes.status}): ${errText}` });
@@ -223,10 +239,4 @@ app.post('/api/match', async (req, res) => {
     scoredJobs.sort((a, b) => b.score - a.score);
     res.json({ jobs: scoredJobs });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: err.message || 'Internal server error' });
-  }
-});
-
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Server listening on port ${PORT}`));
+    console.error('Server error:', err);
