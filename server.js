@@ -37,7 +37,7 @@ function calculateMatch(profileKeywords, jobText) {
   const lowerJob = jobText.toLowerCase();
   const matched = profileKeywords.filter(kw => lowerJob.includes(kw));
   const score = Math.min(100, Math.round((matched.length / Math.min(profileKeywords.length, 15)) * 100));
-  return { score, matched: matched.slice(0, 10) };
+  return { score, matched.slice(0, 10) };
 }
 
 app.get('/', (req, res) => {
