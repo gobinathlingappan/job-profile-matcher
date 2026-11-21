@@ -187,7 +187,7 @@ app.post('/api/match', async (req, res) => {
       sort_by: 'date'
     });
 
-    const url = `https://adzuna.com${params.toString()}`;
+    const url = `https://api.adzuna.com/v1/api/jobs/us/search/1?${params.toString()}`;
 
     let apiRes;
     try {
