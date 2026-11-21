@@ -240,3 +240,9 @@ app.post('/api/match', async (req, res) => {
     res.json({ jobs: scoredJobs });
   } catch (err) {
     console.error('Server error:', err);
+        res.status(500).json({ error: err.message || 'Internal server error' });
+  }
+});
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => console.log(`Server listening on port ${PORT}`));
